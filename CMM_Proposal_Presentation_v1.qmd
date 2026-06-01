@@ -1,0 +1,525 @@
+---
+title: "From Digital Trace Data to Communication Styles"
+subtitle: "A Generalized Multimodal Video Analysis Framework for Audience-Side Linkage"
+author:
+  - name: "Mu-Jung Cho | 卓牧融"
+    orcid: '0000-0001-5500-6336'
+    email: 'mjcho@as.edu.tw'
+    affiliations:
+      - name: 'RCHSS, Academia Sinica'
+title-slide-attributes:
+    data-background-image: https://media1.tenor.com/m/TmIXaAyzuwwAAAAd/space-art-stars-cosmic.gif
+    data-background-opacity: "0.2"
+format:
+  revealjs:
+    template-partials:
+      - title-slide.html
+    theme: [default, synthwave84-reveal-2.scss]
+    width: 1280
+    height: 720
+    margin: 0.06
+    slide-number: c
+    incremental: true
+    slide-level: 2
+    embed-resources: true
+    # scrollable is now per-slide opt-in (add {.scrollable} to a heading)
+    # rather than global, so reveal auto-fits dense slides instead of scrolling.
+execute:
+  echo: false
+  warning: false
+  error: false
+occassion: "CMM Special Issue — Proposal Presentation"
+date: last-modified
+editor:
+  render-on-save: true
+---
+
+```{r}
+#| label: setup
+#| echo: false
+# minimal setup chunk
+```
+
+```{r}
+#| label: title-bg
+#| echo: false
+#| results: asis
+#| warning: false
+
+# --- Dynamic title background -------------------------------------------
+# Leave NULL for a random pick; set to a filename in ../BG to override.
+bg_choice <- NULL          # e.g. "sunset_grid.png"
+
+bg_dir   <- "../BG"
+bg_files <- list.files(bg_dir, pattern = "\\.(png|jpe?g|gif|webp)$",
+                       ignore.case = TRUE, full.names = TRUE)
+
+if (length(bg_files) > 0) {
+  pick <- if (is.null(bg_choice)) {
+    bg_files[sample.int(length(bg_files), 1)]   # random
+  } else {
+    file.path(bg_dir, bg_choice)                # override
+  }
+
+  if (file.exists(pick)) {
+    uri <- xfun::base64_uri(pick)   # -> "data:image/png;base64,...."
+    cat(paste0(
+      '<script>(function(){',
+      'var u="', uri, '";',
+      'function apply(){',
+        'var t=document.getElementById("title-slide");',
+        'if(!t)return false;',
+        't.setAttribute("data-background-image",u);',
+        't.setAttribute("data-background-size","cover");',
+        't.setAttribute("data-background-position","center");',
+        't.setAttribute("data-background-opacity","0.1");',
+        'if(window.Reveal&&Reveal.sync)Reveal.sync();',
+        'return true;};',
+      'if(window.Reveal&&Reveal.isReady&&Reveal.isReady()){apply();}',
+      'else{document.addEventListener("DOMContentLoaded",function(){',
+        'var n=0,iv=setInterval(function(){',
+          'if((window.Reveal&&Reveal.isReady&&Reveal.isReady()&&apply())||++n>100)',
+          'clearInterval(iv);},50);});}',
+      '})();</script>'
+    ))
+  }
+}
+```
+
+# The Measurement Problem
+
+---
+
+## Why Content Matters More Than Screen Time
+
+* Media effects research must move beyond [aggregate use time]{.neon-green} to study the specific content users actually interact with.
+
+* The modern media environment is [fragmented, personalized, and fast-lived]{.neon-green} — traditional methods cannot keep up.
+
+* Social media video epitomizes this challenge: it is inherently [multimodal]{.neon-cyan}, conveying meaning through visual cues, vocal performance, and spoken text simultaneously.
+
+* We need integrated computational approaches that can handle this complexity.
+
+[Pouwels et al. (2024); Ohme et al. (2024); Kroon et al. (2024).]{.citation}
+
+---
+
+# The CMM Three-Step Framework
+
+---
+
+## Content-Based Media Effects Research
+
+### Pouwels et al. (2024)
+
+:::: {.columns}
+::: {.column width="50%"}
+
+Three steps for computational media effects:
+
+1. **Collect** digital trace data (DTD) via APIs, data donation, or tracking.
+2. **Analyze** content with automated textual and visual methods.
+3. **Link** content features to individual-level outcomes.
+:::
+::: {.column width="50%"}
+
+**What's been done:**
+
+* Producer-side validation — U.S. Senate campaign videos (Chang et al.; Hsiao et al., under review).
+
+**What's missing:**
+
+* [Audience-side application]{.neon-cyan} — what real audiences *consume*, linked to survey outcomes at the individual level.
+:::
+::::
+
+---
+
+## From Producer Side to Audience Side
+
+* The validated producer-side pipeline relies on [speaker-specific]{.neon-green} preprocessing (face detection, diarization, ASR).
+
+* Audience consumption spans [diverse, multi-creator corpora]{.neon-green} — no single target speaker.
+
+* We need a [generalized pipeline]{.neon-cyan} that:
+  * operates without speaker-reference templates
+  * scales to heterogeneous video content
+  * generates representations rich enough for theoretically motivated linkage
+
+* This paper introduces and validates such a framework.
+
+---
+
+# Pipeline Architecture
+
+---
+
+## Two-Track Design — Overview {.scrollable}
+
+```{mermaid}
+%%| label: fig-pipeline
+%%| fig-cap: "Two-track multimodal video analysis pipeline. Track A structured features (teal) are reserved for post-hoc SHAP interpretation only. Track B semantic embeddings (purple) drive UMAP + HDBSCAN clustering."
+%%| out-width: "85%"
+
+%%{init: {
+  "theme": "base",
+  "flowchart": {"nodeSpacing": 28, "rankSpacing": 36, "diagramPadding": 8},
+  "themeVariables": {
+    "primaryColor": "#f0efeb",
+    "primaryTextColor": "#1a1a1a",
+    "primaryBorderColor": "#b0aea6",
+    "lineColor": "#666666",
+    "edgeLabelBackground": "#ffffff",
+    "fontFamily": "Roboto, sans-serif",
+    "fontSize": "16px"
+  }
+}}%%
+
+flowchart TD
+    IN["TCS2023 YouTube watch history
+    Stratified sample ~30 videos/participant
+    Availability check · (+ TCS2022 robustness)"]
+
+    IN --> SA ; IN --> SB
+
+    SA["Track A — Structured features
+    Gemini Flash JSON · ~80 features, 5 domains
+    + prosodics if speech confirmed"]:::teal
+
+    SB["Track B — Semantic embeddings
+    Gemini Flash desc. → Gemini Embedding 2
+    desc. 1024D + video 1024D = 2048D"]:::purple
+
+    SA -.->|"post-hoc only"| SH
+    SB --> UM
+
+    UM["UMAP dimensionality reduction
+    n_components ∈ [5,30] tuned by Optuna
+    2D projection separate (viz only)"]
+
+    UM --> CL
+
+    CL["HDBSCAN clustering
+    Optuna: n_components · n_neighbors ·
+    min_cluster_size · 5 quality metrics"]
+
+    CL --> ST
+
+    ST["Stability check
+    ARI across 20 seeds · threshold ≥ 0.70"]:::amber
+
+    ST --> EX ; ST --> SH
+
+    EX["Exemplar selection
+    hdbscan.exemplars_"]:::coral
+
+    SH["SHAP classifier stack
+    CatBoost · LightGBM · NB baseline
+    Per-cluster feature importance"]:::coral
+
+    EX --> LB ; SH --> LB
+
+    LB["LLM cluster labeling
+    Top SHAP features + exemplar descriptions"]
+
+    LB --> TY
+
+    TY["Video typology
+    Per-participant exposure profiles"]
+
+    TY --> LA
+
+    LA["OLS linkage analysis · TCS2023
+    Selective exposure (D21–D22)
+    Civic participation (B31–B32)
+    Threat perception (G01–G06)"]:::blue
+
+    classDef teal fill:#e8f3f0,stroke:#1a6b5a,stroke-width:1.5px,color:#0f2e26
+    classDef purple fill:#eeedfe,stroke:#534AB7,stroke-width:1.5px,color:#26215C
+    classDef coral fill:#faece7,stroke:#993C1D,stroke-width:1px,color:#4A1B0C
+    classDef blue fill:#e6f1fb,stroke:#185FA5,stroke-width:1px,color:#042C53
+    classDef amber fill:#faeeda,stroke:#BA7517,stroke-width:1px,color:#412402
+```
+
+---
+
+## Track A — Structured Feature Extraction
+
+### Gemini Flash JSON Schema → ~80 Features
+
+:::: {.columns}
+::: {.column width="55%"}
+
+Replaces speaker-centric preprocessing with a [standardized JSON schema]{.neon-green}:
+
+1. **Basic metadata** — duration, aspect ratio
+2. **Visual scene & style** — setting, lighting, production quality, crowd level
+3. **Human presence** — count, gender presentation, framing
+4. **Text & branding** — subtitles, logos, slogans
+5. **Audio-content** — speech presence, music type, language
+:::
+::: {.column width="45%"}
+
+* For videos with confirmed speech, [diagnostic prosodic features]{.neon-green} are additionally extracted:
+  * fundamental frequency (F0)
+  * speech rate
+  * vocal intensity (MFCC0)
+  * vocal emotion
+
+* Preserves continuity with prior pipeline's feature vocabulary.
+
+[Bridges the "sensory gap" (Peng et al., 2024).]{.citation}
+:::
+::::
+
+---
+
+## Track B — Semantic Embeddings
+
+### LMM Description + Video → Concatenated 2048D Vector
+
+:::: {.columns}
+::: {.column width="55%"}
+
+* Gemini Flash generates a [natural language description]{.neon-green} per video.
+
+* Both description and raw video are embedded via [Gemini Embedding 2]{.neon-green}:
+  * Description embedding: 1,024D
+  * Video embedding: 1,024D
+  * Concatenated: [2,048D]{.neon-cyan}
+
+* Same encoder ensures dimensional and distributional compatibility.
+:::
+::: {.column width="45%"}
+
+**Why concatenation, not joint single-pass?**
+
+* A joint pass collapses two independent 1,024D representations into one — [discarding complementary information]{.neon-cyan}.
+
+* Concatenation preserves both and lets the [downstream clustering algorithm]{.neon-green} learn the cross-modal weighting.
+
+[Extended from Cerit et al. (2025) multimodal screen content analysis.]{.citation}
+:::
+::::
+
+---
+
+# Clustering & Interpretation
+
+---
+
+## UMAP + HDBSCAN + Optuna
+
+### Multi-Metric Clustering Pipeline
+
+* [UMAP applied twice]{.neon-green}:
+  * High-dimensional (n_components ∈ [5, 30]) → HDBSCAN input
+  * 2D → visualization only
+
+* [Optuna]{.neon-green} simultaneously optimizes five quality metrics:
+  * Silhouette score, DBCV, Calinski-Harabasz, Davies-Bouldin, noise ratio
+
+* Search space: `n_components`, `n_neighbors`, `min_dist`, `min_cluster_size`, `min_samples`
+
+* **Critical design choice:** Track A structured features are [excluded from clustering input]{.neon-cyan} entirely — reserved for post-hoc interpretation only.
+
+---
+
+## Why Exclude Structured Features from Clustering?
+
+* Adding heterogeneous structured features risks [degrading UMAP's manifold estimation]{.neon-green} with noise from variables already implicitly encoded in the 2,048D semantic-visual representation.
+
+* More fundamentally, it [conflates two analytically distinct operations]{.neon-cyan}:
+  * **Finding** natural video groupings (embedding-space structure)
+  * **Explaining** those groupings (human-interpretable terms)
+
+* Keeping structured features post-hoc yields a clean question:
+
+  > Given clusters that formed on their own, [which observable features best discriminate them?]{.neon-cyan}
+
+---
+
+## Cluster Interpretation {.tight}
+
+### SHAP Classifier Stack + LLM Labeling
+
+:::: {.columns}
+::: {.column width="50%"}
+
+**Exemplar selection:**
+
+* HDBSCAN has no centroids — use `exemplars_` (highest-density members of each cluster's condensed tree).
+
+**SHAP classifier stack:**
+
+* [CatBoost]{.neon-green} (primary) — handles categorical features natively
+* [LightGBM]{.neon-green} (comparison) — leaf-wise tree growth
+* [Complement NB]{.neon-green} (baseline) — confirms interactions beyond marginal frequencies
+:::
+::: {.column width="50%"}
+
+**Robustness logic:**
+
+* Where CatBoost and LightGBM [agree]{.neon-cyan} on top SHAP features → importance is [robust]{.neon-cyan}.
+* Divergences → flag instability for investigation.
+
+**LLM labeling:**
+
+* Input: per-cluster SHAP feature profile + exemplar descriptions
+* Output: [data-driven, human-readable]{.neon-green} cluster names and profiles
+
+**Stability check:**
+
+* 20 random seeds → pairwise ARI
+* Threshold: [mean ARI ≥ 0.70]{.neon-cyan}
+:::
+::::
+
+---
+
+# Data & Sampling
+
+---
+
+## TCS2023 Digital Trace Study {.smaller-content}
+
+### 125 Participants · 76,325 YouTube Records
+
+:::: {.columns}
+::: {.column width="55%"}
+
+* **Source:** 2023 Taiwan Communication Survey (Chang, 2025)
+
+* YouTube watch history + four-wave surveys:
+  * Political participation
+  * Selective exposure behavior
+  * Cross-strait threat perception
+  * Political affect
+
+* Three-month panel spanning the [2024 Taiwanese presidential election]{.neon-green} campaign period.
+:::
+::: {.column width="45%"}
+
+**Sampling strategy:**
+
+* ~30 videos/participant via [frequency-weighted]{.neon-green} random selection
+  * Probability ∝ within-participant watch count
+  * Habitually consumed content preferentially represented
+
+* Deleted/unavailable videos → replaced by next available
+
+* Minimum [30 available videos]{.neon-cyan} per participant required
+
+* Target: [~3,750 videos]{.neon-cyan} total
+
+* TCS2022 (Chang, 2023) for cross-year robustness.
+:::
+::::
+
+---
+
+# Linkage Analysis
+
+---
+
+## Exploratory Proof-of-Concept, Not Confirmatory
+
+* Cluster labels are [unknown prior to pipeline execution]{.neon-cyan} — we cannot pre-specify variable names.
+
+* All [k−1 cluster proportions]{.neon-green} (one dropped as reference baseline) enter each regression simultaneously.
+
+* Theory provides interpretive [priors]{.neon-cyan}, not confirmatory hypotheses.
+
+* Significant coefficients are interpreted post-hoc using LLM-assigned cluster labels.
+
+* Diet diversity: [HHI]{.neon-green} = 1 − Σ p~k~^2^ (higher = more even distribution across cluster types).
+
+* All models: `lm_robust(..., se_type = "CR2", clusters = pid)`
+
+---
+
+## Three Theoretical Priors → Six OLS Models {.tight}
+
+### Individual-Level, Theory-Guided Linkage
+
+:::: {.columns}
+::: {.column width="50%"}
+
+**Prior 1 — Selective exposure**
+[(Stroud, 2011)]{.citation}
+
+* Higher HHI + passive consumption breadth → lower active partisan selectivity
+* DVs: D21 (pro-attitude engagement, 0–5), D22 (avoidance behavior, 0–5)
+
+**Prior 2 — Media mobilization**
+[(Norris, 2000; Livingstone & Markham, 2008)]{.citation}
+
+* News/public affairs cluster exposure → higher civic participation
+* DVs: B31 (online civic activities, 0–7), B32 (offline activities, 0–7)
+:::
+::: {.column width="50%"}
+
+**Prior 3 — Cultivation of threat**
+[(Gerbner & Gross, 1976; Omar & Casero-Ripollés, 2023)]{.citation}
+
+* Military/security cluster exposure → higher cross-strait threat perception
+* DVs: `threat_index` (mean std G01–G05), `defense_support` (G06 count, 0–7)
+
+**Shared covariates:**
+
+* log(youtube_weekly_hrs)
+* political interest (B21)
+* party identification (E11–E13)
+:::
+::::
+
+---
+
+# Timeline & Contributions
+
+---
+
+## Project Timeline (Jun–Sep 2026) {.smaller-content}
+
+| Period | Phase | Activities |
+|:---|:---|:---|
+| Jun 2026 | Setup & data prep | IRB extension; TCS data access; sampling frame design; Gemini Flash JSON schema; parallel API config. |
+| Jul 2026 | Pipeline execution | Track A: structured features (~3,750 videos, ~2–3 weeks). Track B: LMM descriptions + Embedding 2 concatenation (2048D). Archive to Parquet. |
+| Aug 2026 | Analysis | Optuna UMAP+HDBSCAN. ARI stability (20 seeds). CatBoost + LightGBM + NB SHAP. LLM labeling. Six OLS models. TCS2022 robustness. |
+| Sep 2026 | Writing & submission | Manuscript draft; co-author review; submit to CMM. Preprint to OSF/SocArXiv. Open-source pipeline release (MIT). |
+
+---
+
+## Contributions
+
+* A [generalized framework]{.neon-green} solving three interconnected methodological challenges:
+  * Extracting meaningful features from diverse, creator-agnostic video corpora
+  * Constructing interpretable content typologies from hybrid representations
+  * Conducting [individual-level linkage]{.neon-cyan} connecting video consumption to communication outcomes
+
+* Demonstrates that the CMM three-step framework extends from [political producer communication]{.neon-green} to [everyday audience consumption]{.neon-cyan}.
+
+* Provides a [replicable, open-source pipeline]{.neon-green} equipped to generate new, data-driven theories of multimodal media effects.
+
+---
+
+## Thank You
+
+### Questions?
+
+:::: {.columns}
+::: {.column}
+
+This framework moves audience-side media effects research from coarse screen time measures to [content-aware, individual-level linkage analysis]{.neon-green}.
+
+Pipeline code and structured feature schema will be released as [open-source tools]{.neon-cyan} alongside the paper.
+:::
+::: {.column}
+
+#### Mu-Jung 'MJ' Cho | 卓牧融
+[mjcho@as.edu.tw]{.neon-red}
+
+RCHSS, Academia Sinica
+
+:::
+::::
