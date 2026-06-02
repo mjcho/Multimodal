@@ -114,6 +114,15 @@ $code-inline-border-color: rgba(249, 42, 173, 0.6) !default;
 // The signature synthwave floor. Global but faint; intensified on section
 // dividers + the title slide (see §2). Anchored to the bottom, raked back in
 // 3D, and masked so it fades toward the horizon line.
+// Forward-travel animation: scrolls only the pink horizontal rows (second
+// background layer) by one full tile cycle (5.5vw) so they appear to emerge
+// at the horizon and flow toward the viewer. Cyan vertical lines stay fixed —
+// in perspective projection, forward motion doesn't translate them laterally.
+@keyframes sw-grid-scroll {
+  from { background-position: 0 0, 0 0; }
+  to   { background-position: 0 0, 0 5.5vw; }
+}
+
 .reveal::after {
   content: "";
   position: fixed;
@@ -136,6 +145,7 @@ $code-inline-border-color: rgba(249, 42, 173, 0.6) !default;
           mask-image: linear-gradient(to top, #000 0%, rgba(0,0,0,0.5) 35%, transparent 75%);
   opacity: 0.10;          // faint on content slides
   transition: opacity 0.4s ease;
+  animation: sw-grid-scroll 5s linear infinite;
 }
 
 // Keep slide content above the atmosphere layers.
@@ -533,7 +543,7 @@ $code-inline-border-color: rgba(249, 42, 173, 0.6) !default;
 // ════════════════════════════════════════════════════════════════════════════
 
 @media (prefers-reduced-motion: reduce) {
-  .reveal::after { transition: none; }
+  .reveal::after { transition: none; animation: none; }
 }
 
 // In PDF export, drop the fixed overlays (they tile oddly across printed pages).
