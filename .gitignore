@@ -1,4 +1,9 @@
-/.DS_Store
-# /index.html
-/index_files
-/CLAUDE.md
+.DS_Store/
+template.html
+CLAUDE.md
+*.qmd
+*.scss
+title-slide.html
+*.Rproj
+.Rproj.user/
+*_files/
